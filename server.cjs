@@ -23,14 +23,13 @@ app.use(express.json({
 }));
 
 // ─── Initialize Clients ───────────────────────────────────────────────────
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'placeholder';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-const resendClient = new resend.Resend(process.env.VITE_RESEND_API_KEY);
+const resendClient = new resend.Resend(process.env.VITE_RESEND_API_KEY || 're_placeholder');
 
-const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder');
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 const PLAN_PRICES = {
