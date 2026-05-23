@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "GemForge Quick Export",
+  "version": "1.0.3",
+  "description": "Export your configured Gem from GemForge directly into Google Gemini.",
+  "permissions": [
+    "storage"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "https://*.gemforge.ai/*"
+      ],
+      "js": [
+        "content_gemforge.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
+      "js": [
+        "content_gemini.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}

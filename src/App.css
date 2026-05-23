@@ -1,0 +1,53 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding-top: 64px;
+}
+
+.app-main {
+  flex: 1;
+}
+
+.plan-expired-toast {
+  position: fixed;
+  top: 80px; /* Below navbar (which is 64px) */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(254, 242, 242, 0.95);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #991b1b;
+  padding: 12px 20px;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  max-width: 90%;
+  width: max-content;
+  font-family: inherit;
+  font-size: 0.925rem;
+  font-weight: 500;
+}
+
+/* Dark mode styles if application uses .dark class */
+.dark .plan-expired-toast,
+[data-theme="dark"] .plan-expired-toast {
+  background: rgba(24, 24, 27, 0.95);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -20px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
