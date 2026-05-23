@@ -41,10 +41,10 @@ async function hydrateAppUser(authUser: SupabaseUser): Promise<{ user: User; pla
     const isPeriodEnded = sub.current_period_end && new Date(sub.current_period_end) < new Date();
     
     if (sub.status === 'active' && isPeriodEnded) {
-      // Update subscription status to 'expired'
+      // Update subscription status to 'cancelled' (database constraint compliant)
       await supabase
         .from('subscriptions')
-        .update({ status: 'expired' })
+        .update({ status: 'cancelled' })
         .eq('id', sub.id);
 
       // Update user plan to 'free'
@@ -61,8 +61,8 @@ async function hydrateAppUser(authUser: SupabaseUser): Promise<{ user: User; pla
         planExpired = true;
         localStorage.setItem(notifyKey, 'true');
       }
-    } else if (sub.status === 'expired' && basePlan === 'free') {
-      // Already expired in DB. Check if we notified the user.
+    } else if ((sub.status === 'expired' || sub.status === 'cancelled') && basePlan === 'free') {
+      // Already expired/cancelled in DB. Check if we notified the user.
       const notifyKey = `notified_expired_sub_${sub.id}`;
       if (!localStorage.getItem(notifyKey)) {
         planExpired = true;

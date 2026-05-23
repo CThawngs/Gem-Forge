@@ -63,6 +63,38 @@ function generateOrderCode() {
   return Date.now();
 }
 
+function repairJSON(jsonStr) {
+  let output = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < jsonStr.length; i++) {
+    const char = jsonStr[i];
+    if (char === '"' && !escaped) {
+      inString = !inString;
+      output += char;
+    } else if (char === '\\' && !escaped) {
+      escaped = true;
+      output += char;
+    } else {
+      if (inString) {
+        if (char === '\n') {
+          output += '\\n';
+        } else if (char === '\r') {
+          output += '\\r';
+        } else if (char === '\t') {
+          output += '\\t';
+        } else {
+          output += char;
+        }
+      } else {
+        output += char;
+      }
+      escaped = false;
+    }
+  }
+  return output.replace(/,\s*([\]}])/g, '$1');
+}
+
 async function getCouponDiscount(couponCode) {
   if (!couponCode) return null;
   try {
@@ -129,6 +161,39 @@ async function sendPlanUpgradeEmail(userEmail, plan, amount, provider) {
     });
   } catch (err) {
     console.error('[Email] Failed to send upgrade email:', err.message);
+  }
+}
+
+async function sendSubscriptionCancelledEmail(userEmail, plan) {
+  try {
+    const planName = plan.charAt(0).toUpperCase() + plan.slice(1);
+    await resendClient.emails.send({
+      from: 'GemForge <noreply@gemforge.ai>',
+      to: userEmail,
+      subject: `[GemForge] Your ${planName} subscription has expired / Đăng ký ${planName} của bạn đã hết hạn`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+          <h2 style="color: #6200ee;">Subscription Expired / Đăng ký hết hạn</h2>
+          <p>Hi,</p>
+          <p>Your <strong>GemForge ${planName} Plan</strong> subscription has expired because the billing period ended or the coupon duration completed, and it has not been renewed.</p>
+          <p>Your account has been reverted to the <strong>Free Plan</strong>. You can still access your Gems, but standard daily limits will apply.</p>
+          <p>If you'd like to restore your high-limit access, you can upgrade your plan at any time on the <a href="https://gem-forge-pink.vercel.app/billing">Billing Page</a>.</p>
+          
+          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+          
+          <h2 style="color: #6200ee;">Đăng ký đã hết hạn</h2>
+          <p>Xin chào,</p>
+          <p>Gói đăng ký <strong>GemForge ${planName}</strong> của bạn đã hết hạn do kết thúc chu kỳ thanh toán hoặc hết thời hạn của mã giảm giá, và chưa được gia hạn.</p>
+          <p>Tài khoản của bạn đã được chuyển về <strong>Gói Miễn Phí (Free Plan)</strong>. Bạn vẫn có thể truy cập các Gem của mình, nhưng giới hạn sử dụng hàng ngày sẽ được áp dụng.</p>
+          <p>Nếu bạn muốn khôi phục quyền truy cập hạn mức cao, bạn có thể nâng cấp gói của mình bất kỳ lúc nào tại <a href="https://gem-forge-pink.vercel.app/billing">Trang Thanh Toán</a>.</p>
+          
+          <p style="margin-top: 30px; font-size: 12px; color: #777;">Thank you for using GemForge! / Cảm ơn bạn đã sử dụng GemForge!</p>
+        </div>
+      `,
+    });
+    console.log(`[Email] Cancellation email sent to ${userEmail} for plan ${plan}`);
+  } catch (err) {
+    console.error('[Email] Failed to send cancellation email:', err.message);
   }
 }
 
@@ -236,7 +301,7 @@ Operational rules:
 System Output Format Requirement: The generated instructions MUST direct the final Gem to format its responses primarily in the following format: ${finalFormat}.
 ${searchContextText}
 
-CRITICAL: You MUST output ONLY valid JSON. Do not include any conversational text. Do not wrap the output in markdown code blocks. The response must start strictly with { and end with }. All newlines inside Markdown strings in the JSON MUST be escaped as \\n. The JSON must be directly parseable by JSON.parse().
+CRITICAL: You MUST output ONLY valid JSON. Do not include any conversational text. Do not wrap the output in markdown code blocks. The response must start strictly with { and end with }. All newlines inside Markdown strings in the JSON MUST be escaped as \\n. All double quotes inside JSON string values MUST be escaped as \\" (e.g. \\"quote\\"). The JSON must be directly parseable by JSON.parse().
 
 Return this exact JSON structure:
 {
@@ -314,22 +379,19 @@ Generate the JSON response now.`;
     // Extract JSON object from any surrounding text
     const firstBrace = responseText.indexOf('{');
     const lastBrace = responseText.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) responseText = responseText.slice(firstBrace, lastBrace + 1);
-    // Strip markdown code fences only
-    responseText = responseText.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
-    // Smart JSON repair: only remove true control characters (0x00-0x08, 0x0E-0x1F)
-    // but PRESERVE \n (0x0A) and \r (0x0D) and \t (0x09) since they may be inside JSON strings
-    // The AI should be returning \\n in JSON strings already; just fix unescaped ones
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
+      responseText = responseText.slice(firstBrace, lastBrace + 1);
+    }
+    // Clean control characters (0x00-0x08, 0x0E-0x1F) but preserve newlines/tabs
     responseText = responseText.replace(/[\x00-\x08\x0E-\x1F]/g, '');
-    console.log('[Generate] Parsing JSON...');
+    console.log('[Generate] Repairing and parsing JSON...');
     let result;
     try {
       result = JSON.parse(responseText);
     } catch (parseErr) {
-      // Fallback: aggressively fix by collapsing literal newlines that break JSON structure
-      // (these would be unescaped newlines in string values, which is invalid JSON)
+      // Fallback: aggressively fix by calling our character-by-character JSON repair helper
       try {
-        const repaired = responseText.replace(/[\r\n]+/g, '\\n').replace(/\t/g, '\\t');
+        const repaired = repairJSON(responseText);
         result = JSON.parse(repaired);
       } catch (e2) {
         console.error('[Generate] Failed to parse AI response. Raw output:', responseText);
@@ -1107,7 +1169,7 @@ app.get('/api/cron/check-subscriptions', async (req, res) => {
     // Find expired subscriptions
     const { data: expiredSubs, error } = await supabase
       .from('subscriptions')
-      .select('user_id, id')
+      .select('user_id, id, plan_type')
       .eq('status', 'active')
       .lt('current_period_end', now);
 
@@ -1116,21 +1178,55 @@ app.get('/api/cron/check-subscriptions', async (req, res) => {
       return res.status(500).json({ error: 'Failed to check subscriptions' });
     }
 
-    // Downgrade each user to free
-    for (const sub of expiredSubs) {
-      await supabase
-        .from('users')
-        .update({ current_plan: 'free' })
-        .eq('id', sub.user_id);
+    let downgradedCount = 0;
 
-      await supabase
-        .from('subscriptions')
-        .update({ status: 'expired' })
-        .eq('id', sub.id);
+    // Downgrade users and update subscription status
+    for (const sub of expiredSubs) {
+      try {
+        // 1. Check if the user has any other active subscription in the future
+        const { data: futureSubs } = await supabase
+          .from('subscriptions')
+          .select('id')
+          .eq('user_id', sub.user_id)
+          .eq('status', 'active')
+          .gte('current_period_end', now);
+
+        const hasFutureActive = futureSubs && futureSubs.length > 0;
+
+        if (!hasFutureActive) {
+          // 2. Downgrade user's plan to 'free'
+          await supabase
+            .from('users')
+            .update({ current_plan: 'free' })
+            .eq('id', sub.user_id);
+
+          downgradedCount++;
+
+          // 3. Fetch user email to send notification
+          const { data: userProfile } = await supabase
+            .from('users')
+            .select('email')
+            .eq('id', sub.user_id)
+            .maybeSingle();
+
+          if (userProfile && userProfile.email) {
+            await sendSubscriptionCancelledEmail(userProfile.email, sub.plan_type);
+          }
+        }
+
+        // 4. Update the expired subscription status to 'cancelled' (constraint compliant)
+        await supabase
+          .from('subscriptions')
+          .update({ status: 'cancelled' })
+          .eq('id', sub.id);
+
+      } catch (subErr) {
+        console.error(`[Cron] Error processing expired sub ${sub.id} for user ${sub.user_id}:`, subErr.message);
+      }
     }
 
-    console.log(`[Cron] Downgraded ${expiredSubs.length} expired subscriptions`);
-    return res.json({ success: true, downgraded: expiredSubs.length });
+    console.log(`[Cron] Processed ${expiredSubs.length} expired rows. Downgraded ${downgradedCount} users.`);
+    return res.json({ success: true, processed: expiredSubs.length, downgraded: downgradedCount });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[Cron] Error:', message);
