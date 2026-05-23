@@ -1124,6 +1124,7 @@ app.get('/api/test', (req, res) => {
     status: 'ok',
     env: {
       has_openrouter_key: !!process.env.OPENROUTER_API_KEY,
+      openrouter_key_info: process.env.OPENROUTER_API_KEY ? `${process.env.OPENROUTER_API_KEY.slice(0, 12)}...${process.env.OPENROUTER_API_KEY.slice(-5)}` : 'none',
       has_supabase_url: !!process.env.VITE_SUPABASE_URL,
       has_supabase_service_key: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
       has_payos_client_id: !!process.env.PAYOS_CLIENT_ID,
