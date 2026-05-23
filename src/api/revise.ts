@@ -8,7 +8,8 @@ export interface RevisionRequest {
 
 export async function reviseWithOpenRouter(request: RevisionRequest): Promise<string> {
   try {
-    const response = await fetch('/api/revise', {
+    const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+    const response = await fetch(`${API_BASE_URL}/api/revise`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

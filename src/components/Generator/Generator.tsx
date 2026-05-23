@@ -43,38 +43,39 @@ function detectLanguage(text: string): 'EN' | 'VI' {
   return viChars.test(text) ? 'VI' : 'EN';
 }
 
+// ─── Rate Limit Error ─────────────────────────────────────────────────────────
+
+class RateLimitError extends Error {
+  retryAfter: number;
+  constructor(retryAfter: number) {
+    super('rate_limit');
+    this.retryAfter = retryAfter;
+    this.name = 'RateLimitError';
+  }
+}
+
 // ─── OpenRouter Generation (via Backend API) ───────────────────────────────────
 
 async function generateWithOpenRouter(
   input: GeneratorInput,
-  lang: 'EN' | 'VI',
-  errorCopy: Pick<GenerationOutput, 'name' | 'description' | 'instructions'>
+  lang: 'EN' | 'VI'
 ): Promise<GenerationOutput> {
-  try {
-    const response = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input, lang, outputFormat: input.outputFormat }),
-    });
+  const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+  const response = await fetch(`${API_BASE_URL}/api/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ input, lang, outputFormat: input.outputFormat }),
+  });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || errorData.details || `Server error: ${response.statusText}`);
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    if (response.status === 429) {
+      throw new RateLimitError(errorData.retryAfter || 30);
     }
-
-    const result = await response.json();
-    return result;
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error('OpenRouter API error:', err);
-    return {
-      name: errorCopy.name,
-      description: message || errorCopy.description,
-      instructions: errorCopy.instructions,
-      tools: 'No default tool',
-      knowledgeBase: null,
-    };
+    throw new Error(errorData.error || errorData.details || `Server error: ${response.statusText}`);
   }
+
+  return response.json();
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -97,6 +98,8 @@ export default function Generator() {
   const [errors, setErrors] = useState<Partial<Record<keyof GeneratorInput, string>>>({});
   const [authError, setAuthError] = useState<string>('');
   const [cooldownTimeLeft, setCooldownTimeLeft] = useState<number>(0);
+  const [rateLimitCountdown, setRateLimitCountdown] = useState<number>(0);
+  const rateLimitRetryRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (authError !== 'gen_err_limit_exceeded') return;
@@ -311,13 +314,61 @@ export default function Generator() {
 
     const combinedText = `${input.mainGoal} ${input.expertRole} ${input.targetAudience} ${input.constraints}`;
     const detectedLang = detectLanguage(combinedText);
-
-    // Call OpenRouter API via backend
-    const result = await generateWithOpenRouter(input, detectedLang, {
+    const errorCopy = {
       name: t('gen_error_openrouter_title'),
       description: t('gen_error_openrouter_desc'),
       instructions: t('gen_error_openrouter_instructions'),
-    });
+    };
+
+    // Retry loop — handles 429 rate limit with countdown
+    let result: GenerationOutput | null = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        result = await generateWithOpenRouter(input, detectedLang);
+        setRateLimitCountdown(0);
+        break; // success
+      } catch (err: unknown) {
+        if (err instanceof RateLimitError) {
+          const waitSecs = Math.min(err.retryAfter, 60);
+          // Show countdown in overlay
+          setRateLimitCountdown(waitSecs);
+          await new Promise<void>((resolve) => {
+            rateLimitRetryRef.current = resolve;
+            let remaining = waitSecs;
+            const tick = setInterval(() => {
+              remaining -= 1;
+              setRateLimitCountdown(remaining);
+              if (remaining <= 0) {
+                clearInterval(tick);
+                resolve();
+              }
+            }, 1000);
+          });
+          setRateLimitCountdown(0);
+          continue; // retry
+        }
+        // Non-rate-limit error — show as result
+        const message = err instanceof Error ? err.message : String(err);
+        result = {
+          name: errorCopy.name,
+          description: message || errorCopy.description,
+          instructions: errorCopy.instructions,
+          tools: 'No default tool',
+          knowledgeBase: null,
+        };
+        break;
+      }
+    }
+
+    if (!result) {
+      result = {
+        name: errorCopy.name,
+        description: 'AI is too busy right now. Please try again in a few minutes.',
+        instructions: errorCopy.instructions,
+        tools: 'No default tool',
+        knowledgeBase: null,
+      };
+    }
 
     setOutput(result);
     setIsGeneratingLocal(false);
@@ -372,10 +423,40 @@ export default function Generator() {
                   <div className="ai-loader-ring ai-loader-ring--3" />
                   <Sparkles size={24} className="ai-loader-icon" />
                 </div>
-                <p className="ai-loader-text" style={{ marginBottom: '8px' }}>{t('loading_text')}</p>
-                <p style={{ color: '#a78bfa', fontSize: '0.9rem', textAlign: 'center', maxWidth: '85%', marginBottom: '24px', lineHeight: 1.5 }}>
-                  {t('gen_wait_warning')}
-                </p>
+
+                {rateLimitCountdown > 0 ? (
+                  <>
+                    <p className="ai-loader-text" style={{ marginBottom: '8px', color: '#f59e0b' }}>
+                      ⚡ AI server is busy — auto-retrying...
+                    </p>
+                    <div style={{
+                      background: 'rgba(245,158,11,0.15)',
+                      border: '1px solid rgba(245,158,11,0.4)',
+                      borderRadius: '12px',
+                      padding: '16px 24px',
+                      textAlign: 'center',
+                      marginBottom: '20px',
+                    }}>
+                      <div style={{ fontSize: '3rem', fontWeight: 700, color: '#fbbf24', lineHeight: 1 }}>
+                        {rateLimitCountdown}s
+                      </div>
+                      <div style={{ color: '#d1d5db', fontSize: '0.82rem', marginTop: '6px' }}>
+                        Free AI rate limit — retrying automatically
+                      </div>
+                      <div style={{ color: '#6b7280', fontSize: '0.75rem', marginTop: '4px' }}>
+                        Giới hạn AI miễn phí — tự động thử lại
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="ai-loader-text" style={{ marginBottom: '8px' }}>{t('loading_text')}</p>
+                    <p style={{ color: '#a78bfa', fontSize: '0.9rem', textAlign: 'center', maxWidth: '85%', marginBottom: '24px', lineHeight: 1.5 }}>
+                      {t('gen_wait_warning')}
+                    </p>
+                  </>
+                )}
+
                 <div className="ai-skeleton">
                   <div className="ai-skeleton-bar ai-skeleton-bar--wide" />
                   <div className="ai-skeleton-bar ai-skeleton-bar--mid" />

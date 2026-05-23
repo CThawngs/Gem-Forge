@@ -158,7 +158,7 @@ app.post('/api/generate', async (req, res) => {
     if (!input) return res.status(400).json({ error: 'Missing input data' });
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) return res.status(500).json({ error: 'OPENROUTER_API_KEY is not configured' });
-    const HARDCODED_MODEL = 'openrouter/free';
+    const HARDCODED_MODEL = 'openrouter/free'; // Free Models Router - auto picks from all free models
     const formatMap = {
       fmt_text: 'Text',
       fmt_markdown: 'Markdown',
@@ -261,30 +261,51 @@ User Requirements:
 - Constraints/Additional Info: ${input.constraints || 'None'}
 
 Generate the JSON response now.`;
+
     console.log('[Generate] Sending request to OpenRouter...');
-    const openRouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
-        'X-Title': 'GemForge',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: HARDCODED_MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt + formatInstruction },
-          { role: 'user', content: userPrompt },
-        ],
-      }),
-    });
+
+    const messages = [
+      { role: 'system', content: systemPrompt + formatInstruction },
+      { role: 'user', content: userPrompt },
+    ];
+
+    // 90-second timeout abort controller
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
+
+    let openRouterResponse;
+    try {
+      openRouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'HTTP-Referer': process.env.SITE_URL || 'https://gem-forge-pink.vercel.app',
+          'X-Title': 'GemForge',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model: HARDCODED_MODEL, messages }),
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
     console.log('[Generate] OpenRouter response status:', openRouterResponse.status);
+
     if (!openRouterResponse.ok) {
       let errorData = {};
       try { errorData = await openRouterResponse.json(); } catch (e) { errorData = { raw: await openRouterResponse.text() }; }
       const errorMessage = errorData?.error?.message || openRouterResponse.statusText;
-      console.error('[Generate] OpenRouter Error:', openRouterResponse.status, errorMessage, errorData);
-      if (openRouterResponse.status === 429) return res.status(429).json({ error: 'API rate limit exceeded. Please wait a moment and try again.', details: errorMessage });
+      // Extract retry_after_seconds from OpenRouter metadata
+      const retryAfter = errorData?.error?.metadata?.retry_after_seconds || 30;
+      console.error('[Generate] OpenRouter Error:', openRouterResponse.status, errorMessage);
+      if (openRouterResponse.status === 429) {
+        return res.status(429).json({
+          error: 'rate_limit',
+          retryAfter,
+          message: `AI server is busy. Auto-retrying in ${retryAfter}s...`
+        });
+      }
       return res.status(openRouterResponse.status).json({ error: `OpenRouter Error: ${errorMessage}`, details: errorData });
     }
     const data = await openRouterResponse.json();
@@ -347,7 +368,7 @@ app.post('/api/revise', async (req, res) => {
     const { currentContent, activeTab, userPrompt, chatHistory, selectedText } = req.body;
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) return res.status(500).json({ error: 'OPENROUTER_API_KEY is not configured' });
-    const HARDCODED_MODEL = 'openrouter/free';
+    const HARDCODED_MODEL = 'openrouter/free'; // Free Models Router - auto picks from all free models
     let systemPrompt = '';
     if (activeTab === 'instructions') {
       systemPrompt = `You are an expert editor focusing ONLY on the instructions section of a Gemini Gem. Your task is to modify the provided currentContent based on the userPrompt and previous interactions.
@@ -394,7 +415,7 @@ CRITICAL RULES:
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+        'HTTP-Referer': process.env.SITE_URL || 'https://gem-forge-pink.vercel.app',
         'X-Title': 'GemForge',
         'Content-Type': 'application/json',
       },
