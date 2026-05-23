@@ -99,7 +99,7 @@ export default function CheckoutModal() {
 
     const intervalId = setInterval(async () => {
       try {
-        const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const API_BASE_URL = import.meta.env.VITE_API_URL || '';
         const res = await fetch(`${API_BASE_URL}/api/payments/payos/status/${paymentData.orderCode}`);
         if (!res.ok) {
           const text = await res.text();
@@ -190,7 +190,7 @@ export default function CheckoutModal() {
     setError('');
 
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const API_BASE_URL = import.meta.env.VITE_API_URL || '';
       // For both payos and momo, hit the '/api/payments/payos' endpoint
       const backendMethod = (discountPercent === 100) ? 'payos' : ((selectedPaymentMethod === 'momo') ? 'payos' : selectedPaymentMethod);
       const endpoint = `${API_BASE_URL}/api/payments/${backendMethod}`;

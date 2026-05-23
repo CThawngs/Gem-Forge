@@ -1134,6 +1134,10 @@ app.get('/api/test', (req, res) => {
   ] });
 });
 
-app.listen(PORT, () => {
-  console.log("🔥 Backend Server is ALIVE and listening on port " + PORT);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log("🔥 Backend Server is ALIVE and listening on port " + PORT);
+  });
+}
+
+module.exports = app;
