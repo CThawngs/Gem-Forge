@@ -1121,17 +1121,28 @@ app.get('/api/cron/check-subscriptions', async (req, res) => {
 // ─── Start Server ────────────────────────────────────────────────────────
 // Test route
 app.get('/api/test', (req, res) => {
-  res.json({ status: 'ok', routes: [
-    '/api/generate',
-    '/api/revise',
-    '/api/payments/payos',
-    '/api/payments/stripe',
-    '/api/payments/paypal',
-    '/api/webhooks/payos',
-    '/api/webhooks/stripe',
-    '/api/webhooks/paypal',
-    '/api/cron/check-subscriptions'
-  ] });
+  res.json({
+    status: 'ok',
+    env: {
+      has_openrouter_key: !!process.env.OPENROUTER_API_KEY,
+      has_supabase_url: !!process.env.VITE_SUPABASE_URL,
+      has_supabase_service_key: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      has_payos_client_id: !!process.env.PAYOS_CLIENT_ID,
+      has_stripe_secret_key: !!process.env.STRIPE_SECRET_KEY,
+      node_env: process.env.NODE_ENV
+    },
+    routes: [
+      '/api/generate',
+      '/api/revise',
+      '/api/payments/payos',
+      '/api/payments/stripe',
+      '/api/payments/paypal',
+      '/api/webhooks/payos',
+      '/api/webhooks/stripe',
+      '/api/webhooks/paypal',
+      '/api/cron/check-subscriptions'
+    ]
+  });
 });
 
 if (require.main === module) {
