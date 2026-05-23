@@ -158,7 +158,7 @@ app.post('/api/generate', async (req, res) => {
     if (!input) return res.status(400).json({ error: 'Missing input data' });
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) return res.status(500).json({ error: 'OPENROUTER_API_KEY is not configured' });
-    const HARDCODED_MODEL = 'openrouter/free';
+    const HARDCODED_MODEL = process.env.OPENROUTER_MODEL || 'openrouter/free';
     const formatMap = {
       fmt_text: 'Text',
       fmt_markdown: 'Markdown',
@@ -347,7 +347,7 @@ app.post('/api/revise', async (req, res) => {
     const { currentContent, activeTab, userPrompt, chatHistory, selectedText } = req.body;
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) return res.status(500).json({ error: 'OPENROUTER_API_KEY is not configured' });
-    const HARDCODED_MODEL = 'openrouter/free';
+    const HARDCODED_MODEL = process.env.OPENROUTER_MODEL || 'openrouter/free';
     let systemPrompt = '';
     if (activeTab === 'instructions') {
       systemPrompt = `You are an expert editor focusing ONLY on the instructions section of a Gemini Gem. Your task is to modify the provided currentContent based on the userPrompt and previous interactions.
