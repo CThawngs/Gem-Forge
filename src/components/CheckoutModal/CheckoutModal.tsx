@@ -194,7 +194,7 @@ export default function CheckoutModal() {
       // For both payos and momo, hit the '/api/payments/payos' endpoint
       const backendMethod = (discountPercent === 100) ? 'payos' : ((selectedPaymentMethod === 'momo') ? 'payos' : selectedPaymentMethod);
       const endpoint = `${API_BASE_URL}/api/payments/${backendMethod}`;
-      
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -306,8 +306,8 @@ export default function CheckoutModal() {
                 {paymentData.amount?.toLocaleString('vi-VN')} VND
               </div>
               <p className="checkout-qr-note">
-                {selectedPaymentMethod === 'momo' 
-                  ? t('checkout_momo_note') 
+                {selectedPaymentMethod === 'momo'
+                  ? t('checkout_momo_note')
                   : t('checkout_vietqr_note')}
               </p>
             </div>
@@ -319,8 +319,8 @@ export default function CheckoutModal() {
                   <span className="checkout-manual-value">
                     {BANK_NAMES[paymentData.bin]?.[lang] || `${t('checkout_bank')} (BIN: ${paymentData.bin})`}
                   </span>
-                  <button 
-                    className={`checkout-copy-btn ${copiedField === 'bankName' ? 'copied' : ''}`} 
+                  <button
+                    className={`checkout-copy-btn ${copiedField === 'bankName' ? 'copied' : ''}`}
                     onClick={() => handleCopy(BANK_NAMES[paymentData.bin!]?.[lang] || paymentData.bin || '', 'bankName')}
                     title={copiedField === 'bankName' ? t('output_copied') : t('output_copy')}
                   >
@@ -334,8 +334,8 @@ export default function CheckoutModal() {
                   <span className="checkout-manual-value">
                     {paymentData.accountNumber}
                   </span>
-                  <button 
-                    className={`checkout-copy-btn ${copiedField === 'accountNumber' ? 'copied' : ''}`} 
+                  <button
+                    className={`checkout-copy-btn ${copiedField === 'accountNumber' ? 'copied' : ''}`}
                     onClick={() => handleCopy(paymentData.accountNumber || '', 'accountNumber')}
                     title={copiedField === 'accountNumber' ? t('output_copied') : t('output_copy')}
                   >
@@ -349,8 +349,8 @@ export default function CheckoutModal() {
                   <span className="checkout-manual-value">
                     {paymentData.accountName}
                   </span>
-                  <button 
-                    className={`checkout-copy-btn ${copiedField === 'accountName' ? 'copied' : ''}`} 
+                  <button
+                    className={`checkout-copy-btn ${copiedField === 'accountName' ? 'copied' : ''}`}
                     onClick={() => handleCopy(paymentData.accountName || '', 'accountName')}
                     title={copiedField === 'accountName' ? t('output_copied') : t('output_copy')}
                   >
@@ -363,8 +363,8 @@ export default function CheckoutModal() {
                 <span className="checkout-manual-value checkout-manual-amount">
                   {paymentData.amount?.toLocaleString('vi-VN')} VND
                 </span>
-                <button 
-                  className={`checkout-copy-btn ${copiedField === 'amount' ? 'copied' : ''}`} 
+                <button
+                  className={`checkout-copy-btn ${copiedField === 'amount' ? 'copied' : ''}`}
                   onClick={() => handleCopy(paymentData.amount?.toString() || '', 'amount')}
                   title={copiedField === 'amount' ? t('output_copied') : t('output_copy')}
                 >
@@ -376,8 +376,8 @@ export default function CheckoutModal() {
                 <span className="checkout-manual-value" style={{ textTransform: 'uppercase' }}>
                   {paymentData.description}
                 </span>
-                <button 
-                  className={`checkout-copy-btn ${copiedField === 'description' ? 'copied' : ''}`} 
+                <button
+                  className={`checkout-copy-btn ${copiedField === 'description' ? 'copied' : ''}`}
                   onClick={() => handleCopy(paymentData.description || '', 'description')}
                   title={copiedField === 'description' ? t('output_copied') : t('output_copy')}
                 >
@@ -393,10 +393,10 @@ export default function CheckoutModal() {
           </div>
 
           <div style={{ marginTop: '16px', textAlign: 'center' }}>
-            <a 
-              href={paymentData.url} 
-              target="_blank" 
-              rel="noopener noreferrer" 
+            <a
+              href={paymentData.url}
+              target="_blank"
+              rel="noopener noreferrer"
               className="checkout-action-button"
               style={{ display: 'inline-flex', textDecoration: 'none', margin: '0' }}
             >

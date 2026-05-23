@@ -171,8 +171,8 @@ app.post('/api/generate', async (req, res) => {
     };
     const rawFmt = outputFormat || input?.outputFormat || '';
     const resolvedFormat = formatMap[rawFmt] || rawFmt || 'Markdown';
-    const finalFormat = (resolvedFormat === 'Other' || resolvedFormat === 'fmt_other') 
-      ? (input?.outputFormatOther || 'Text') 
+    const finalFormat = (resolvedFormat === 'Other' || resolvedFormat === 'fmt_other')
+      ? (input?.outputFormatOther || 'Text')
       : resolvedFormat;
 
     let formatInstruction = '';
@@ -182,7 +182,7 @@ app.post('/api/generate', async (req, res) => {
     } else {
       formatInstruction = `\n\nIMPORTANT: The generated Gem instructions (the "instructions" field in the JSON) must use clear Markdown formatting, and MUST direct the final Gem to format its responses in the ${finalFormat} format.`;
     }
-    
+
     const toneMap = {
       tone_formal: 'Formal',
       tone_casual: 'Casual',
@@ -193,26 +193,26 @@ app.post('/api/generate', async (req, res) => {
     };
     const resolvedTone = toneMap[input.toneOfVoice] || input.toneOfVoice || '';
 
-async function fetchKnowledgeBaseContext(query) {
-  try {
-    const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=&format=json`;
-    const response = await fetch(url);
-    if (!response.ok) return [];
-    const data = await response.json();
-    const results = data.query?.search?.slice(0, 3) || [];
-    return results.map(r => ({
-      title: r.title,
-      url: `https://en.wikipedia.org/wiki/${encodeURIComponent(r.title.replace(/ /g, '_'))}`
-    }));
-  } catch (err) {
-    console.error('[WebSearch] Wikipedia error:', err.message);
-    return [];
-  }
-}
+    async function fetchKnowledgeBaseContext(query) {
+      try {
+        const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=&format=json`;
+        const response = await fetch(url);
+        if (!response.ok) return [];
+        const data = await response.json();
+        const results = data.query?.search?.slice(0, 3) || [];
+        return results.map(r => ({
+          title: r.title,
+          url: `https://en.wikipedia.org/wiki/${encodeURIComponent(r.title.replace(/ /g, '_'))}`
+        }));
+      } catch (err) {
+        console.error('[WebSearch] Wikipedia error:', err.message);
+        return [];
+      }
+    }
 
     const searchQuery = `${input.expertRole} ${input.mainGoal}`.slice(0, 100);
     const searchContextUrls = await fetchKnowledgeBaseContext(searchQuery);
-    const searchContextText = searchContextUrls.length > 0 
+    const searchContextText = searchContextUrls.length > 0
       ? `\n\nREAL KNOWLEDGE BASE URLS: You MUST use the following real-world URLs in the "knowledgeBase" array field. Do NOT invent or hallucinate URLs. Choose from these:\n${searchContextUrls.map(u => `- {"title": "${u.title.replace(/"/g, '\\"')}", "url": "${u.url}"}`).join('\n')}`
       : `\n\nREAL KNOWLEDGE BASE URLS: If you cannot find any real, verified URLs, return an empty array [] for "knowledgeBase". DO NOT hallucinate URLs.`;
 
@@ -565,11 +565,11 @@ app.post('/api/payments/payos', async (req, res) => {
   } catch (error) {
     const errorMessage = error.response?.data?.message || error.message || JSON.stringify(error);
     console.error("🔥 PAYOS RAW ERROR:", errorMessage);
-    
+
     // Return the EXACT error message to the frontend so the user can read it in the Network tab
-    return res.status(500).json({ 
-      error: "PayOS creation failed", 
-      details: errorMessage 
+    return res.status(500).json({
+      error: "PayOS creation failed",
+      details: errorMessage
     });
   }
 });
@@ -616,12 +616,12 @@ app.get('/api/payments/payos/status/:orderCode', async (req, res) => {
     const payos = new PayOSClass({ clientId, apiKey, checksumKey });
 
     const paymentInfo = await payos.paymentRequests.get(Number(orderCode));
-    
+
     console.log(`[PayOS Status] Query orderCode ${orderCode} got status:`, paymentInfo.status);
 
     if (paymentInfo.status === 'PAID') {
       const { user_id: userId, plan_type: plan, coupon_code: couponCode, amount } = pending;
-      
+
       // Perform database updates
       await handleSuccessfulPayment(userId, plan, amount, 'payos', `PAYOS-${orderCode}`, couponCode);
 
@@ -695,7 +695,7 @@ async function getPayPalAccessToken() {
     throw new Error('PayPal Client ID or Secret is not configured in .env');
   }
   const auth = Buffer.from(`${clientId}:${secret}`).toString('base64');
-  
+
   const response = await fetch('https://api-m.sandbox.paypal.com/v1/oauth2/token', {
     method: 'POST',
     headers: {
@@ -704,7 +704,7 @@ async function getPayPalAccessToken() {
     },
     body: 'grant_type=client_credentials',
   });
-  
+
   if (!response.ok) {
     const errText = await response.text();
     throw new Error(`Failed to get PayPal token: ${errText}`);
@@ -893,7 +893,7 @@ async function handleSuccessfulPayment(userId, plan, amount, provider, transacti
       console.error('[Webhook] Failed to insert subscription:', subError);
       throw subError;
     }
-    
+
     // Increment coupon used_count if provided
     if (couponCode) {
       const { data: c } = await supabase.from('coupons').select('used_count').eq('code', couponCode.toUpperCase()).maybeSingle();
@@ -910,7 +910,7 @@ async function handleSuccessfulPayment(userId, plan, amount, provider, transacti
         .select('email')
         .eq('id', userId)
         .maybeSingle();
-      
+
       if (userProfile?.email) {
         userEmail = userProfile.email;
       }
@@ -1049,8 +1049,8 @@ app.post('/api/webhooks/paypal', async (req, res) => {
     if (eventType === 'PAYMENT.CAPTURE.COMPLETED' || eventType === 'CHECKOUT.ORDER.APPROVED') {
       const resource = body.resource;
       // Get the order ID from different possible event resource fields
-      const orderId = eventType === 'CHECKOUT.ORDER.APPROVED' 
-        ? resource.id 
+      const orderId = eventType === 'CHECKOUT.ORDER.APPROVED'
+        ? resource.id
         : (resource.supplementary_data?.related_ids?.order_id || resource.parent_payment || resource.id);
 
       if (orderId) {
