@@ -258,28 +258,101 @@ app.post('/api/generate', async (req, res) => {
     };
     const resolvedTone = toneMap[input.toneOfVoice] || input.toneOfVoice || '';
 
-    async function fetchKnowledgeBaseContext(query) {
+    function extractKeywords(expertRole, mainGoal) {
+      const combined = `${expertRole} ${mainGoal}`;
+      const capitalizedRegex = /\p{Lu}\p{L}*(?:\s+\p{Lu}\p{L}*)*/gu;
+      const matches = combined.match(capitalizedRegex) || [];
+      const stopwords = new Set([
+        'I', 'A', 'The', 'And', 'Or', 'For', 'With', 'By', 'From', 'To', 'In', 'On', 'At', 'An',
+        'Người', 'Hãy', 'Làm', 'Cách', 'Tạo', 'Viết', 'Gợi', 'Ý', 'Tôi', 'Cần', 'Giúp', 'Để', 'Và'
+      ]);
+      const cleanMatches = matches
+        .map(m => m.trim())
+        .filter(m => m.length > 1 && !stopwords.has(m));
+
+      const techTerms = ['setup', 'agent', 'automation', 'api', 'bot', 'gpt', 'llm', 'seo', 'code', 'database', 'design', 'app', 'web', 'marketing', 'sales'];
+      const words = combined.toLowerCase().split(/[^a-z0-9\p{L}]+/u);
+      const foundTechTerms = words.filter(w => techTerms.includes(w));
+
+      return [...new Set([...cleanMatches, ...foundTechTerms])];
+    }
+
+    function cleanSearchQuery(query) {
+      const words = query.split(/\s+/);
+      const stopwords = new Set([
+        'người', 'hướng', 'dẫn', 'đồng', 'hành', 'từng', 'bước', 'một', 'đảm', 'bảo', 'giúp', 'tôi', 'làm', 'thế', 'nào', 'để', 'cho', 'hãy', 'viết', 'tạo', 'cách', 'làm', 'sao', 'và', 'hoặc', 'của', 'tại', 'trong', 'trên', 'dưới', 'với', 'từ', 'đến', 'một', 'các', 'những', 'hệ', 'thống', 'gợi', 'ý'
+      ]);
+      return words.filter(w => !stopwords.has(w.toLowerCase())).join(' ').slice(0, 100).trim();
+    }
+
+    async function fetchWikiSearch(query, lang = 'en') {
       try {
-        const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=&format=json`;
+        const url = `https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=&format=json`;
         const response = await fetch(url);
         if (!response.ok) return [];
         const data = await response.json();
         const results = data.query?.search?.slice(0, 3) || [];
         return results.map(r => ({
           title: r.title,
-          url: `https://en.wikipedia.org/wiki/${encodeURIComponent(r.title.replace(/ /g, '_'))}`
+          url: `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(r.title.replace(/ /g, '_'))}`
         }));
       } catch (err) {
-        console.error('[WebSearch] Wikipedia error:', err.message);
+        console.error(`[WebSearch] Wikipedia (${lang}) error:`, err.message);
         return [];
       }
     }
 
-    const searchQuery = `${input.expertRole} ${input.mainGoal}`.slice(0, 100);
-    const searchContextUrls = await fetchKnowledgeBaseContext(searchQuery);
-    const searchContextText = searchContextUrls.length > 0
-      ? `\n\nREAL KNOWLEDGE BASE URLS: You MUST use the following real-world URLs in the "knowledgeBase" array field. Do NOT invent or hallucinate URLs. Choose from these:\n${searchContextUrls.map(u => `- {"title": "${u.title.replace(/"/g, '\\"')}", "url": "${u.url}"}`).join('\n')}`
-      : `\n\nREAL KNOWLEDGE BASE URLS: If you cannot find any real, verified URLs, return an empty array [] for "knowledgeBase". DO NOT hallucinate URLs.`;
+    const terms = extractKeywords(input.expertRole || '', input.mainGoal || '');
+    let termResultsList = [];
+    
+    if (terms.length > 0) {
+      for (const term of terms.slice(0, 3)) {
+        const enResults = await fetchWikiSearch(term, 'en');
+        const viResults = await fetchWikiSearch(term, 'vi');
+        const combinedForTerm = [...enResults, ...viResults];
+        if (combinedForTerm.length > 0) {
+          termResultsList.push(combinedForTerm);
+        }
+      }
+    }
+
+    let searchContextUrls = [];
+    let hasMore = true;
+    let index = 0;
+    while (hasMore && searchContextUrls.length < 15) {
+      hasMore = false;
+      for (const termResults of termResultsList) {
+        if (index < termResults.length) {
+          searchContextUrls.push(termResults[index]);
+          hasMore = true;
+        }
+      }
+      index++;
+    }
+
+    if (searchContextUrls.length === 0) {
+      const fallbackQuery = cleanSearchQuery(`${input.expertRole || ''} ${input.mainGoal || ''}`);
+      if (fallbackQuery) {
+        const enResults = await fetchWikiSearch(fallbackQuery, 'en');
+        const viResults = await fetchWikiSearch(fallbackQuery, 'vi');
+        searchContextUrls.push(...enResults, ...viResults);
+      }
+    }
+
+    // Deduplicate and limit to 4 results
+    const seenUrls = new Set();
+    const finalUrls = [];
+    for (const item of searchContextUrls) {
+      if (!seenUrls.has(item.url)) {
+        seenUrls.add(item.url);
+        finalUrls.push(item);
+      }
+      if (finalUrls.length >= 4) break;
+    }
+
+    const searchContextText = finalUrls.length > 0
+      ? `\n\nREAL KNOWLEDGE BASE URLS: You MUST select the items in the "knowledgeBase" array ONLY from the following list of real-world URLs. Do NOT invent, change, or hallucinate URLs or titles. Choose from these:\n${finalUrls.map(u => `- {"title": "${u.title.replace(/"/g, '\\"')}", "url": "${u.url}"}`).join('\n')}`
+      : `\n\nREAL KNOWLEDGE BASE URLS: The list of verified URLs is empty. You MUST return an empty array [] for the "knowledgeBase" field. DO NOT hallucinate any URLs.`;
 
     let systemPrompt = `You are an expert prompt engineer and AI assistant architect. Your task is to create a system instruction (Gem) based on the user's requirements.
 
