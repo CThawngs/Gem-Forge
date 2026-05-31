@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Lock, Sparkles, MessageSquare, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { diffWords } from 'diff';
 import { useApp } from '../../hooks/useApp';
@@ -139,6 +139,31 @@ export default function RevisionChat({ tabId, tabContent, onContentUpdate, onPen
     const timer = setTimeout(() => setToast(null), 4000);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  const syncTokensFromDB = useCallback(async () => {
+    if (!currentGemId || !user) return;
+    try {
+      const { data, error } = await supabase
+        .from('generations')
+        .select('revision_tokens_left, revision_reset_at')
+        .eq('id', currentGemId)
+        .eq('user_id', user.id)
+        .single();
+      if (!error && data) {
+        const limit = user.plan === 'pro' ? 10 : 20;
+        const tokens = Math.min(data.revision_tokens_left ?? limit, limit);
+        setRevisionTokensLeft(tokens);
+        setRevisionTurns(limit - tokens);
+        setRevisionResetAt(data.revision_reset_at || null);
+      }
+    } catch (err) {
+      console.error('Failed to sync tokens from DB:', err);
+    }
+  }, [currentGemId, user, setRevisionTokensLeft, setRevisionTurns, setRevisionResetAt]);
+
+  useEffect(() => {
+    syncTokensFromDB();
+  }, [syncTokensFromDB]);
 
   const setPendingRevision = (val: string | null) => {
     setPendingRevisionState(val);
@@ -307,6 +332,7 @@ export default function RevisionChat({ tabId, tabContent, onContentUpdate, onPen
       const updatedContent: Record<string, string> = {};
       updatedContent[tabId] = pendingRevision;
       await updateGeneration(currentGemId, user.id, updatedContent);
+      await syncTokensFromDB();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('Failed to save revision:', err);
@@ -318,10 +344,11 @@ export default function RevisionChat({ tabId, tabContent, onContentUpdate, onPen
     setRevisionError(null);
   };
 
-  const handleRejectRevision = () => {
+  const handleRejectRevision = async () => {
     // Discard the pending revision without updating content
     setPendingRevision(null);
     setRevisionError(null);
+    await syncTokensFromDB();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
