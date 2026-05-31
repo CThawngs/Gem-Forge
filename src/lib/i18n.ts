@@ -275,6 +275,7 @@ const translations = {
   revision_msg_ph: { EN: 'e.g., Make it more friendly', VI: 'Ví dụ: Làm thân thiện hơn' },
   revision_error_prefix: { EN: 'Revision failed: ', VI: 'Sửa thất bại: ' },
   revision_failed: { EN: 'Revision failed.', VI: 'Sửa đổi thất bại.' },
+  revision_network_error: { EN: 'The AI server timed out or is temporarily unreachable. Please try again in a few moments.', VI: 'Máy chủ AI đã hết thời gian phản hồi hoặc tạm thời không thể kết nối. Vui lòng thử lại sau vài giây.' },
   revision_locked_title: { EN: 'Upgrade Pro to revise Gem', VI: 'Nâng cấp Pro để sửa Gem' },
   revision_locked_desc: { EN: 'Upgrade to Pro or Ultra to edit your Gem directly using AI.', VI: 'Nâng cấp lên gói Pro hoặc Ultra để chỉnh sửa Gem trực tiếp bằng AI.' },
   revision_locked_cta: { EN: 'View Pricing', VI: 'Xem bảng giá' },

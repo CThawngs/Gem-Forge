@@ -308,12 +308,18 @@ export default function RevisionChat({ tabId, tabContent, onContentUpdate, onPen
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('Revision error:', err);
-      setRevisionError(message || t('revision_failed'));
+      
+      const isNetworkError = message.includes('Failed to fetch') || message.includes('failed to fetch');
+      const cleanMessage = isNetworkError 
+        ? (t('revision_network_error') || 'The AI server timed out or is temporarily unreachable. Please try again.') 
+        : (message || t('revision_failed'));
+
+      setRevisionError(cleanMessage);
       
       // Still add to history so user sees the error
       const finalHistory: RevisionMessage[] = [
         ...updatedHistory,
-        { role: 'assistant', content: `${t('revision_error_prefix')}${message}` },
+        { role: 'assistant', content: isNetworkError ? cleanMessage : `${t('revision_error_prefix')}${message}` },
       ];
       setRevisionHistory({ ...revisionHistory, [tabId]: finalHistory });
     } finally {

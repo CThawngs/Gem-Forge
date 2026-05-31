@@ -349,9 +349,12 @@ export default function Generator() {
         }
         // Non-rate-limit error — show as result
         const message = err instanceof Error ? err.message : String(err);
+        const isNetworkError = message.includes('Failed to fetch') || message.includes('failed to fetch');
         result = {
           name: errorCopy.name,
-          description: message || errorCopy.description,
+          description: isNetworkError
+            ? (t('revision_network_error') || 'The AI server timed out or is temporarily unreachable. Please try again.')
+            : (message || errorCopy.description),
           instructions: errorCopy.instructions,
           tools: 'No default tool',
           knowledgeBase: null,
