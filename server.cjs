@@ -452,9 +452,9 @@ Generate the JSON response now.`;
       { role: 'user', content: userPrompt },
     ];
 
-    // 90-second timeout abort controller
+    // 55-second timeout abort controller
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 90000);
+    const timeoutId = setTimeout(() => controller.abort(), 55000);
 
     let openRouterResponse;
     try {
@@ -523,6 +523,7 @@ Generate the JSON response now.`;
     return res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const isTimeout = err instanceof Error && err.name === 'AbortError';
     console.error('[Generate] API error:', message, err);
     await logEvent('error', 'openrouter', `Failed to generate Gem: ${message}`, {
       error: message,
@@ -530,8 +531,12 @@ Generate the JSON response now.`;
         expertRole: req.body?.input?.expertRole,
         mainGoal: req.body?.input?.mainGoal,
         targetAudience: req.body?.input?.targetAudience
-      }
+      },
+      isTimeout
     });
+    if (isTimeout) {
+      return res.status(504).json({ error: 'AI server response timed out. Please try again.' });
+    }
     return res.status(500).json({ error: message || 'Failed to generate content' });
   }
 });
@@ -585,16 +590,27 @@ CRITICAL RULES:
     const selectedTextNote = selectedText ? `\n\nCONTEXT FOCUS (prioritize revising this section):\n${selectedText}\n` : '';
     messages.push({ role: 'user', content: `Current Content:\n\n${currentContent}\n\n---\n\nRevision Request: ${userPrompt}${selectedTextNote}` });
     console.log('[Revise] Sending request to OpenRouter...');
-    const openRouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': process.env.SITE_URL || 'https://gem-forge-pink.vercel.app',
-        'X-Title': 'GemForge',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ model: HARDCODED_MODEL, messages }),
-    });
+    
+    // 55-second timeout abort controller
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 55000);
+    
+    let openRouterResponse;
+    try {
+      openRouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'HTTP-Referer': process.env.SITE_URL || 'https://gem-forge-pink.vercel.app',
+          'X-Title': 'GemForge',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model: HARDCODED_MODEL, messages }),
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
     console.log('[Revise] OpenRouter response status:', openRouterResponse.status);
     if (!openRouterResponse.ok) {
       let errorData = {};
@@ -617,12 +633,17 @@ CRITICAL RULES:
     return res.json({ content: responseText });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const isTimeout = err instanceof Error && err.name === 'AbortError';
     console.error('[Revise] API error:', message, err);
     await logEvent('error', 'openrouter', `Failed to revise Gem: ${message}`, {
       error: message,
       activeTab,
-      prompt: userPrompt
+      prompt: userPrompt,
+      isTimeout
     });
+    if (isTimeout) {
+      return res.status(504).json({ error: 'AI server response timed out. Please try again.' });
+    }
     return res.status(500).json({ error: message || 'Failed to revise content' });
   }
 });

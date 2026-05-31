@@ -307,9 +307,27 @@ export default function RevisionChat({ tabId, tabContent, onContentUpdate, onPen
       setRevisionHistory({ ...revisionHistory, [tabId]: finalHistory });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error('Revision error:', err);
+      const msgLower = message.toLowerCase();
+      const isNetworkError = 
+        msgLower.includes('failed to fetch') || 
+        msgLower.includes('fetch') || 
+        msgLower.includes('timeout') || 
+        msgLower.includes('time out') || 
+        msgLower.includes('504') || 
+        msgLower.includes('gateway') || 
+        msgLower.includes('aborted') || 
+        msgLower.includes('abort') || 
+        msgLower.includes('unreachable') || 
+        msgLower.includes('network') ||
+        !message.trim() ||
+        message === 'Server error:';
+
+      if (isNetworkError) {
+        console.warn('Revision network/timeout warning:', message);
+      } else {
+        console.error('Revision error:', err);
+      }
       
-      const isNetworkError = message.includes('Failed to fetch') || message.includes('failed to fetch');
       const cleanMessage = isNetworkError 
         ? (t('revision_network_error') || 'The AI server timed out or is temporarily unreachable. Please try again.') 
         : (message || t('revision_failed'));

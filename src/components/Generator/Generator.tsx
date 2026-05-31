@@ -349,7 +349,27 @@ export default function Generator() {
         }
         // Non-rate-limit error — show as result
         const message = err instanceof Error ? err.message : String(err);
-        const isNetworkError = message.includes('Failed to fetch') || message.includes('failed to fetch');
+        const msgLower = message.toLowerCase();
+        const isNetworkError = 
+          msgLower.includes('failed to fetch') || 
+          msgLower.includes('fetch') || 
+          msgLower.includes('timeout') || 
+          msgLower.includes('time out') || 
+          msgLower.includes('504') || 
+          msgLower.includes('gateway') || 
+          msgLower.includes('aborted') || 
+          msgLower.includes('abort') || 
+          msgLower.includes('unreachable') || 
+          msgLower.includes('network') ||
+          !message.trim() ||
+          message === 'Server error:';
+
+        if (isNetworkError) {
+          console.warn('Generation network/timeout warning:', message);
+        } else {
+          console.error('Generation error:', err);
+        }
+
         result = {
           name: errorCopy.name,
           description: isNetworkError

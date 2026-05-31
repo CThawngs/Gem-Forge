@@ -29,10 +29,26 @@ export async function reviseWithOpenRouter(request: RevisionRequest): Promise<st
     const data = await response.json();
     return data.content || '';
   } catch (err: unknown) {
-    console.error('Revise API error:', err);
-
-    const message = err instanceof Error ? err.message : '';
+    const message = err instanceof Error ? err.message : String(err);
     const status = (err as { status?: number })?.status;
+    const msgLower = message.toLowerCase();
+    const isNetwork = 
+      msgLower.includes('failed to fetch') || 
+      msgLower.includes('fetch') || 
+      msgLower.includes('timeout') || 
+      msgLower.includes('time out') || 
+      msgLower.includes('504') || 
+      msgLower.includes('gateway') || 
+      msgLower.includes('aborted') || 
+      msgLower.includes('abort') || 
+      msgLower.includes('unreachable') || 
+      msgLower.includes('network');
+
+    if (isNetwork) {
+      console.warn('Revise API network/timeout warning:', message);
+    } else {
+      console.error('Revise API error:', err);
+    }
 
     // Handle rate limit error
     if (message.includes('429') || status === 429) {
