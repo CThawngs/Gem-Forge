@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Lock, Sparkles, MessageSquare, Check, X } from 'lucide-react';
+import { Send, Lock, Sparkles, MessageSquare, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { diffWords } from 'diff';
 import { useApp } from '../../hooks/useApp';
 import type { RevisionMessage } from '../../context/AppContextBase';
@@ -74,6 +74,44 @@ function DiffViewer({
           <X size={16} />
           <span>{t('diff_reject')}</span>
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Expandable Message Component ────────────────────────────────────────────
+const TRUNCATE_LENGTH = 200;
+
+function ExpandableMessage({ msg }: { msg: RevisionMessage }) {
+  const { t } = useApp();
+  const [expanded, setExpanded] = useState(false);
+  const isTruncatable = msg.content.length > TRUNCATE_LENGTH;
+  const displayContent = isTruncatable && !expanded
+    ? msg.content.substring(0, TRUNCATE_LENGTH)
+    : msg.content;
+
+  return (
+    <div className={`revision-msg revision-msg--${msg.role}`}>
+      {msg.role === 'assistant' && (
+        <span className="revision-msg-icon"><Sparkles size={10} /></span>
+      )}
+      <div className="revision-msg-content-wrap">
+        <p className="revision-msg-content" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+          {displayContent}{isTruncatable && !expanded ? '…' : ''}
+        </p>
+        {isTruncatable && (
+          <button
+            className="revision-expand-btn"
+            onClick={() => setExpanded((prev) => !prev)}
+            title={expanded ? t('revision_show_less') : t('revision_show_more')}
+          >
+            {expanded ? (
+              <><ChevronUp size={12} /> {t('revision_show_less')}</>
+            ) : (
+              <><ChevronDown size={12} /> {t('revision_show_more')}</>
+            )}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -377,15 +415,7 @@ export default function RevisionChat({ tabId, tabContent, onContentUpdate, onPen
       {history.length > 0 && !pendingRevision && (
         <div className="revision-messages">
           {history.map((msg, i) => (
-            <div
-              key={i}
-              className={`revision-msg revision-msg--${msg.role}`}
-            >
-              {msg.role === 'assistant' && (
-                <span className="revision-msg-icon"><Sparkles size={10} /></span>
-              )}
-              <p className="revision-msg-content">{msg.content.substring(0, 200)}{msg.content.length > 200 ? '…' : ''}</p>
-            </div>
+            <ExpandableMessage key={i} msg={msg} />
           ))}
           {isRevising && (
             <div className="revision-msg revision-msg--assistant revision-msg--thinking">

@@ -221,6 +221,7 @@ const translations = {
   coupon_expired: { EN: 'Coupon has expired.', VI: 'Mã giảm giá đã hết hạn.' },
   coupon_invalid: { EN: 'Invalid coupon code.', VI: 'Mã giảm giá không hợp lệ.' },
   coupon_limit: { EN: 'Coupon usage limit reached.', VI: 'Mã giảm giá đã đạt giới hạn sử dụng.' },
+  coupon_already_used: { EN: 'You have already used this coupon. Each account can only use a coupon once.', VI: 'Bạn đã sử dụng mã giảm giá này rồi. Mỗi tài khoản chỉ được dùng một mã một lần.' },
 
   // ── Auth ───────────────────────────────────────────────
   auth_err_fill: { EN: 'Please fill all required fields.', VI: 'Vui lòng điền tất cả trường bắt buộc.' },
@@ -294,6 +295,8 @@ const translations = {
   revision_proposed: { EN: 'Here is the proposed revision. Review the differences below.', VI: 'Đây là bản sửa đổi được đề xuất. Hãy xem các khác biệt bên dưới.' },
   revision_token_error_prefix: { EN: 'Token deduction error: ', VI: 'Lỗi khấu trừ lượt sửa: ' },
   revision_save_error_prefix: { EN: 'Save error: ', VI: 'Lỗi lưu: ' },
+  revision_show_more: { EN: 'Show more', VI: 'Xem thêm' },
+  revision_show_less: { EN: 'Show less', VI: 'Thu gọn' },
 
   // ── Output Cards ──────────────────────────────────────
   output_name: { EN: 'Name', VI: 'Tên' },

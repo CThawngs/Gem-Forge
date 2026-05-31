@@ -110,6 +110,42 @@
   color: var(--text-secondary);
 }
 
+.revision-msg-content-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.revision-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent-primary);
+  background: transparent;
+  border: 1px solid rgba(124, 58, 237, 0.25);
+  border-radius: var(--radius-full);
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  align-self: flex-start;
+  text-decoration: none;
+  letter-spacing: 0.01em;
+}
+
+.revision-expand-btn:hover {
+  background: rgba(124, 58, 237, 0.12);
+  border-color: rgba(124, 58, 237, 0.5);
+  transform: translateY(-1px);
+}
+
+.revision-expand-btn:active {
+  transform: translateY(0);
+}
+
 /* Thinking animation */
 .revision-msg--thinking .revision-msg-content {
   opacity: 0.6;

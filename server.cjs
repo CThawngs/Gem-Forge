@@ -69,30 +69,62 @@ function repairJSON(jsonStr) {
   let escaped = false;
   for (let i = 0; i < jsonStr.length; i++) {
     const char = jsonStr[i];
-    if (char === '"' && !escaped) {
-      inString = !inString;
+    if (escaped) {
+      // Pass through any escape sequence unchanged
       output += char;
-    } else if (char === '\\' && !escaped) {
+      escaped = false;
+    } else if (char === '\\') {
       escaped = true;
       output += char;
-    } else {
-      if (inString) {
-        if (char === '\n') {
-          output += '\\n';
-        } else if (char === '\r') {
-          output += '\\r';
-        } else if (char === '\t') {
-          output += '\\t';
-        } else {
-          output += char;
-        }
+    } else if (char === '"') {
+      inString = !inString;
+      output += char;
+    } else if (inString) {
+      if (char === '\n') {
+        output += '\\n';
+      } else if (char === '\r') {
+        output += '\\r';
+      } else if (char === '\t') {
+        output += '\\t';
       } else {
         output += char;
       }
-      escaped = false;
+    } else {
+      output += char;
     }
   }
+  // Remove trailing commas before closing brackets/braces
   return output.replace(/,\s*([\]}])/g, '$1');
+}
+
+// Aggressive fallback: strip everything outside of the outermost {...} and re-try
+function extractAndRepairJSON(raw) {
+  // Try direct parse first
+  try { return JSON.parse(raw); } catch (_) {/* continue */}
+  // Try repairJSON
+  try { return JSON.parse(repairJSON(raw)); } catch (_) {/* continue */}
+  // Try extracting only the outermost JSON object
+  const first = raw.indexOf('{');
+  const last = raw.lastIndexOf('}');
+  if (first !== -1 && last > first) {
+    const sliced = raw.slice(first, last + 1);
+    try { return JSON.parse(sliced); } catch (_) {/* continue */}
+    try { return JSON.parse(repairJSON(sliced)); } catch (_) {/* continue */}
+  }
+  // Last resort: try to build a partial valid object from known fields
+  const extractField = (fieldName) => {
+    const pattern = new RegExp(`"${fieldName}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`);
+    const m = raw.match(pattern);
+    return m ? m[1].replace(/\\n/g, '\n') : null;
+  };
+  const name = extractField('name');
+  const description = extractField('description');
+  const instructions = extractField('instructions');
+  const tools = extractField('tools');
+  if (name && instructions) {
+    return { name, description: description || '', instructions, tools: tools || 'No default tool', knowledgeBase: [] };
+  }
+  throw new Error('AI returned an invalid or incomplete response format. Please try again.');
 }
 
 async function getCouponDiscount(couponCode) {
@@ -117,7 +149,7 @@ async function getCouponDiscount(couponCode) {
   }
 }
 
-async function validateCoupon(couponCode) {
+async function validateCoupon(couponCode, userId = null) {
   if (!couponCode) return { valid: false, error: 'coupon_invalid' };
   try {
     const { data: coupon, error } = await supabase
@@ -137,6 +169,19 @@ async function validateCoupon(couponCode) {
     }
     if (coupon.max_uses > 0 && coupon.used_count >= coupon.max_uses) {
       return { valid: false, error: 'coupon_limit' };
+    }
+    // ── 1-account-1-coupon enforcement ──────────────────────────────────────
+    // Block if this user has EVER used this specific coupon code before
+    if (userId) {
+      const { data: existingRedemption } = await supabase
+        .from('coupon_redemptions')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('coupon_code', couponCode.toUpperCase())
+        .maybeSingle();
+      if (existingRedemption) {
+        return { valid: false, error: 'coupon_already_used' };
+      }
     }
     return { valid: true, coupon };
   } catch (err) {
@@ -460,16 +505,10 @@ Generate the JSON response now.`;
     console.log('[Generate] Repairing and parsing JSON...');
     let result;
     try {
-      result = JSON.parse(responseText);
+      result = extractAndRepairJSON(responseText);
     } catch (parseErr) {
-      // Fallback: aggressively fix by calling our character-by-character JSON repair helper
-      try {
-        const repaired = repairJSON(responseText);
-        result = JSON.parse(repaired);
-      } catch (e2) {
-        console.error('[Generate] Failed to parse AI response. Raw output:', responseText);
-        throw new Error('AI returned an invalid or incomplete response format. Please try again.');
-      }
+      console.error('[Generate] Failed to parse AI response. Raw output:', responseText);
+      throw new Error('AI returned an invalid or incomplete response format. Please try again.');
     }
     console.log('[Generate] Success, sending response.');
     await logEvent('info', 'openrouter', 'Successfully generated Gem', {
@@ -626,7 +665,7 @@ app.post('/api/payments/payos', async (req, res) => {
     // Apply coupon if provided
     let actualCoupon = null;
     if (couponCode) {
-      const couponResult = await validateCoupon(couponCode);
+      const couponResult = await validateCoupon(couponCode, userId);
       if (!couponResult.valid) {
         return res.status(400).json({ error: couponResult.error });
       }
@@ -879,7 +918,7 @@ app.post('/api/payments/paypal', async (req, res) => {
 
     let actualCoupon = null;
     if (couponCode) {
-      const couponResult = await validateCoupon(couponCode);
+      const couponResult = await validateCoupon(couponCode, userId);
       if (!couponResult.valid) {
         return res.status(400).json({ error: couponResult.error });
       }
@@ -1050,12 +1089,17 @@ async function handleSuccessfulPayment(userId, plan, amount, provider, transacti
       throw subError;
     }
 
-    // Increment coupon used_count if provided
+    // Increment coupon used_count and record user redemption
     if (couponCode) {
       const { data: c } = await supabase.from('coupons').select('used_count').eq('code', couponCode.toUpperCase()).maybeSingle();
       if (c) {
         await supabase.from('coupons').update({ used_count: c.used_count + 1 }).eq('code', couponCode.toUpperCase());
       }
+      // Record this user's redemption so they cannot reuse the coupon
+      await supabase.from('coupon_redemptions').upsert(
+        { user_id: userId, coupon_code: couponCode.toUpperCase() },
+        { onConflict: 'user_id,coupon_code', ignoreDuplicates: true }
+      );
     }
 
     // 4. Send confirmation email

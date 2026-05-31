@@ -166,6 +166,22 @@ export default function CheckoutModal() {
         return;
       }
 
+      // 1-account-1-coupon: check if user already used this coupon
+      if (user?.id) {
+        const { data: existingRedemption } = await supabase
+          .from('coupon_redemptions')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('coupon_code', couponCodeInput.trim().toUpperCase())
+          .maybeSingle();
+        if (existingRedemption) {
+          setCouponError('coupon_already_used');
+          setAppliedCoupon(null);
+          setDiscountPercent(0);
+          return;
+        }
+      }
+
       setAppliedCoupon(coupon.code);
       setDiscountPercent(coupon.discount_percent);
       setCouponError('');
@@ -210,7 +226,7 @@ export default function CheckoutModal() {
 
       if (!response.ok) {
         const errCode = data?.error || '';
-        if (['coupon_invalid', 'coupon_expired', 'coupon_limit', 'coupon_error'].includes(errCode)) {
+        if (['coupon_invalid', 'coupon_expired', 'coupon_limit', 'coupon_error', 'coupon_already_used'].includes(errCode)) {
           setCouponError(errCode);
           setAppliedCoupon(null);
           setDiscountPercent(0);
@@ -241,7 +257,7 @@ export default function CheckoutModal() {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (['coupon_invalid', 'coupon_expired', 'coupon_limit', 'coupon_error'].includes(message)) {
+      if (['coupon_invalid', 'coupon_expired', 'coupon_limit', 'coupon_error', 'coupon_already_used'].includes(message)) {
         setIsProcessing(false);
         return;
       }
