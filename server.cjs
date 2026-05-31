@@ -627,6 +627,24 @@ CRITICAL RULES:
   }
 });
 
+// Validate coupon for client
+app.post('/api/coupons/validate', async (req, res) => {
+  try {
+    const { couponCode, userId } = req.body;
+    if (!couponCode) {
+      return res.status(400).json({ valid: false, error: 'coupon_invalid' });
+    }
+    const result = await validateCoupon(couponCode, userId);
+    if (!result.valid) {
+      return res.json({ valid: false, error: result.error });
+    }
+    return res.json({ valid: true, discountPercent: result.coupon.discount_percent });
+  } catch (err) {
+    console.error('[API Coupon Validate] Error:', err);
+    return res.status(500).json({ valid: false, error: 'coupon_error' });
+  }
+});
+
 // ─── Payment Creation Endpoints ──────────────────────────────────────────
 
 // 1. PayOS (VietQR)
@@ -836,14 +854,37 @@ app.get('/api/payments/payos/status/:orderCode', async (req, res) => {
 // 2. Stripe (International Cards)
 app.post('/api/payments/stripe', async (req, res) => {
   try {
-    const { plan, userId, email } = req.body;
+    const { plan, userId, email, couponCode } = req.body;
     if (!plan || !userId) return res.status(400).json({ error: 'Missing plan or userId' });
 
-    const amount = PLAN_PRICES[plan]?.usd;
+    let amount = PLAN_PRICES[plan]?.usd;
     if (!amount) return res.status(400).json({ error: 'Invalid plan' });
+
+    let actualCoupon = null;
+    if (couponCode) {
+      const couponResult = await validateCoupon(couponCode, userId);
+      if (!couponResult.valid) {
+        return res.status(400).json({ error: couponResult.error });
+      }
+      const coupon = couponResult.coupon;
+      amount = Math.max(0, amount * (1 - coupon.discount_percent / 100));
+      actualCoupon = coupon.code;
+    }
 
     // Stripe expects amount in smallest currency unit (cents for USD)
     const unitAmount = Math.round(amount * 100);
+
+    // If amount is 0 (100% discount coupon), bypass payment gateway completely!
+    if (unitAmount === 0) {
+      console.log(`[Stripe] 100% discount verified. Bypassing payment gateway for user: ${userId}, plan: ${plan}`);
+      const orderCode = Number(String(Date.now()).slice(-6));
+      await handleSuccessfulPayment(userId, plan, 0, 'coupon', `FREE-${orderCode}`, actualCoupon);
+      return res.json({
+        provider: 'free',
+        success: true,
+        message: 'Plan upgraded successfully via 100% discount coupon.',
+      });
+    }
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -867,6 +908,7 @@ app.post('/api/payments/stripe', async (req, res) => {
         userId,
         plan,
         provider: 'stripe',
+        couponCode: actualCoupon,
       },
     });
 
@@ -1228,9 +1270,10 @@ app.post('/api/webhooks/stripe', async (req, res) => {
     const userId = session.metadata.userId;
     const plan = session.metadata.plan;
     const amount = session.amount_total / 100; // Convert cents to dollars
+    const couponCode = session.metadata.couponCode || null;
 
     try {
-      await handleSuccessfulPayment(userId, plan, amount, 'stripe', session.id);
+      await handleSuccessfulPayment(userId, plan, amount, 'stripe', session.id, couponCode);
     } catch (err) {
       console.error('[Webhook Stripe] Payment handling failed:', err.message);
       return res.status(500).json({ error: 'Payment processing failed' });

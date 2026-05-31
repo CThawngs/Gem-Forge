@@ -138,52 +138,27 @@ export default function CheckoutModal() {
     setCouponError('');
 
     try {
-      const { data: coupon, error: fetchErr } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('code', couponCodeInput.trim().toUpperCase())
-        .eq('is_active', true)
-        .maybeSingle();
+      const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${API_BASE_URL}/api/coupons/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          couponCode: couponCodeInput.trim(),
+          userId: user?.id || null,
+        }),
+      });
 
-      if (fetchErr || !coupon) {
-        setCouponError('coupon_invalid');
+      const data = await response.json();
+
+      if (!response.ok || !data.valid) {
+        setCouponError(data.error || 'coupon_invalid');
         setAppliedCoupon(null);
         setDiscountPercent(0);
         return;
       }
 
-      if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
-        setCouponError('coupon_expired');
-        setAppliedCoupon(null);
-        setDiscountPercent(0);
-        return;
-      }
-
-      if (coupon.max_uses > 0 && coupon.used_count >= coupon.max_uses) {
-        setCouponError('coupon_limit');
-        setAppliedCoupon(null);
-        setDiscountPercent(0);
-        return;
-      }
-
-      // 1-account-1-coupon: check if user already used this coupon
-      if (user?.id) {
-        const { data: existingRedemption } = await supabase
-          .from('coupon_redemptions')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('coupon_code', couponCodeInput.trim().toUpperCase())
-          .maybeSingle();
-        if (existingRedemption) {
-          setCouponError('coupon_already_used');
-          setAppliedCoupon(null);
-          setDiscountPercent(0);
-          return;
-        }
-      }
-
-      setAppliedCoupon(coupon.code);
-      setDiscountPercent(coupon.discount_percent);
+      setAppliedCoupon(couponCodeInput.trim().toUpperCase());
+      setDiscountPercent(data.discountPercent);
       setCouponError('');
       setPaymentStatus(null);
       setPaymentData(null);
