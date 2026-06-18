@@ -29,9 +29,21 @@ export default function AuthModal() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+    setError('');
+    setSuccessMessage('');
+  }, [authModal]);
 
   const [cooldownTime, setCooldownTime] = useState(0);
   const cooldownRef = useRef<number>(0);
@@ -118,6 +130,10 @@ export default function AuthModal() {
         setError(t('auth_err_pw'));
         return;
       }
+      if (password !== confirmPassword) {
+        setError(t('auth_err_pw_mismatch'));
+        return;
+      }
       setLoading(true);
       try {
         const { error: updateError } = await supabase.auth.updateUser({ password });
@@ -129,6 +145,7 @@ export default function AuthModal() {
             setAuthModal(null);
             setSuccessMessage('');
             setPassword('');
+            setConfirmPassword('');
           }, 2000);
         }
       } catch (err) {
@@ -332,7 +349,7 @@ export default function AuthModal() {
           <div className="auth-field">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               <label className="field-label" htmlFor="auth-password" style={{ marginBottom: 0 }}>
-                {t('auth_password')}
+                {isReset ? t('auth_new_password') : t('auth_password')}
               </label>
               {isLogin && (
                 <button
@@ -363,7 +380,7 @@ export default function AuthModal() {
                 id="auth-password"
                 type={showPassword ? "text" : "password"}
                 className="input-field auth-input"
-                placeholder={t('auth_pw_min')}
+                placeholder={isReset ? t('auth_new_password_placeholder') : t('auth_pw_min')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -392,6 +409,52 @@ export default function AuthModal() {
                 }}
               >
                 {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Confirm Password (only for Reset Password mode) */}
+        {isReset && (
+          <div className="auth-field">
+            <label className="field-label" htmlFor="auth-confirm-password" style={{ marginBottom: '8px' }}>
+              {t('auth_confirm_password')}
+            </label>
+            <div className="auth-input-wrap">
+              <Lock size={15} className="auth-input-icon" />
+              <input
+                id="auth-confirm-password"
+                type={showConfirmPassword ? "text" : "password"}
+                className="input-field auth-input"
+                placeholder={t('auth_confirm_password_placeholder')}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                onKeyDown={handleKeyDown}
+                autoComplete="new-password"
+                style={{ paddingRight: '40px' }}
+                disabled={!!successMessage}
+              />
+              <button
+                type="button"
+                className="auth-pw-toggle"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                aria-label={t('auth_toggle_password')}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-text-secondary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0
+                }}
+              >
+                {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
               </button>
             </div>
           </div>

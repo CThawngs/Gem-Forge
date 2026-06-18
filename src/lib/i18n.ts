@@ -266,6 +266,11 @@ const translations = {
   auth_reset_subtitle: { EN: 'Please type your new password below.', VI: 'Vui lòng nhập mật khẩu mới của bạn bên dưới.' },
   auth_reset_button: { EN: 'Update Password', VI: 'Cập nhật mật khẩu' },
   auth_reset_success: { EN: 'Password updated successfully!', VI: 'Cập nhật mật khẩu thành công!' },
+  auth_new_password: { EN: 'New Password', VI: 'Mật khẩu mới' },
+  auth_new_password_placeholder: { EN: 'Enter new password', VI: 'Nhập mật khẩu mới' },
+  auth_confirm_password: { EN: 'Confirm New Password', VI: 'Nhập lại mật khẩu mới' },
+  auth_confirm_password_placeholder: { EN: 'Re-enter your new password', VI: 'Nhập lại mật khẩu mới' },
+  auth_err_pw_mismatch: { EN: 'Passwords do not match.', VI: 'Mật khẩu nhập lại không khớp.' },
   auth_back_to_login: { EN: 'Back to Login', VI: 'Quay lại đăng nhập' },
 
   // ── Revision ─────────────────────────────────────────
