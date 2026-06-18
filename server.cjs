@@ -716,7 +716,7 @@ app.post('/api/payments/payos', async (req, res) => {
     // Ensure amount is a positive integer
     amount = Math.floor(amount);
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:5173';
+    const baseUrl = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://gem-forge-pink.vercel.app';
 
     // If amount is 0 (100% discount coupon), bypass payment gateway completely!
     if (amount === 0) {
@@ -923,8 +923,8 @@ app.post('/api/payments/stripe', async (req, res) => {
         },
       ],
       mode: 'payment',
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:5173'}/billing?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:5173'}/billing?status=cancel`,
+      success_url: `${process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://gem-forge-pink.vercel.app'}/billing?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://gem-forge-pink.vercel.app'}/billing?status=cancel`,
       metadata: {
         userId,
         plan,
@@ -1012,8 +1012,8 @@ app.post('/api/payments/paypal', async (req, res) => {
           brand_name: 'GemForge',
           landing_page: 'BILLING',
           user_action: 'PAY_NOW',
-          return_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:5173'}/billing?status=success&provider=paypal`,
-          cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:5173'}/billing?status=cancel&provider=paypal`,
+          return_url: `${process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://gem-forge-pink.vercel.app'}/billing?status=success&provider=paypal`,
+          cancel_url: `${process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://gem-forge-pink.vercel.app'}/billing?status=cancel&provider=paypal`,
         }
       }),
     });
