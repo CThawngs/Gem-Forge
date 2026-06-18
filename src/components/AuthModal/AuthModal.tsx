@@ -90,7 +90,7 @@ export default function AuthModal() {
       setLoading(true);
       try {
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: window.location.origin + '/',
+          redirectTo: (import.meta.env.VITE_SITE_URL || 'https://gem-forge-pink.vercel.app') + '/',
         });
         if (resetError) {
           const isRateLimit = (resetError as any).status === 429 || 
